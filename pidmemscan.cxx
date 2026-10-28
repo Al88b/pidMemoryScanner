@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <termios.h>
+#include <sys/ioctl.h>
 
 namespace fs = std::filesystem;
 
@@ -114,7 +115,42 @@ void print_memory_contents(int pid, const std::vector<MemoryRegion>& regions) {
     close(mem_fd);
 }
 
+// Widest line the dump prints:
+//   "  PID [" + 7-digit PID + "] Address [0x" + 16 hex digits + "]: " + 64 sampled bytes
+const int REQUIRED_COLS = 7 + 7 + 13 + 16 + 3 + 64;
+
+// Returns the terminal's current width in columns, or -1 if unknown
+int get_terminal_cols() {
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0) {
+        return ws.ws_col;
+    }
+    return -1;
+}
+
+// Asks the terminal window to grow wide enough for every output line
+void ensure_terminal_width() {
+    if (!isatty(STDOUT_FILENO)) return;
+
+    int cols = get_terminal_cols();
+    if (cols >= REQUIRED_COLS) return;
+
+    struct winsize ws;
+    int rows = (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row > 0) ? ws.ws_row : 40;
+
+    // xterm window-resize sequence: CSI 8 ; rows ; cols t
+    std::cout << "\033[8;" << rows << ";" << REQUIRED_COLS << "t" << std::flush;
+    std::this_thread::sleep_for(std::chrono::milliseconds(200)); // give the window time to resize
+
+    cols = get_terminal_cols();
+    if (cols >= 0 && cols < REQUIRED_COLS) {
+        std::cout << "Note: terminal is " << cols << " columns wide; widen it to at least "
+                  << REQUIRED_COLS << " to avoid wrapped lines.\n";
+    }
+}
+
 int main() {
+    ensure_terminal_width();
     std::cout << "Starting process loop. Press [SPACE] to pause/resume. Press [Ctrl+C] to exit.\n";
     set_conio_mode(true);
 
