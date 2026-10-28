@@ -2,6 +2,8 @@
 #include <filesystem>
 #include <fstream>
 #include <vector>
+#include <algorithm>
+#include <cctype>
 #include <string>
 #include <chrono>
 #include <thread>
@@ -97,7 +99,7 @@ void print_memory_contents(int pid, const std::vector<MemoryRegion>& regions) {
 
         ssize_t bytes_read = read(mem_fd, buffer.data(), bytes_to_sample);
         if (bytes_read > 0) {
-            std::cout << "  Address [0x" << std::hex << region.start << "]: ";
+            std::cout << "  PID [" << std::dec << pid << "] Address [0x" << std::hex << region.start << "]: ";
             for (ssize_t i = 0; i < bytes_read; ++i) {
                 // Print safe printable ASCII characters or dots for non-printable binary
                 if (std::isprint(static_cast<unsigned char>(buffer[i]))) {
